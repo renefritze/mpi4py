@@ -66,6 +66,23 @@ class BaseTestIntercomm(object):
         self.assertEqual(intracomm.rank, basecomm.rank)
         intracomm.Free()
 
+    def testCreateFromGroups(self):
+        lgroup = self.INTERCOMM.Get_group()
+        rgroup = self.INTERCOMM.Get_remote_group()
+        try:
+            try:
+                Create_from_groups = MPI.Intercomm.Create_from_groups
+                intercomm = Create_from_groups(lgroup, 0, rgroup, 0)
+                ccmp = MPI.Comm.Compare(self.INTERCOMM, intercomm)
+                intercomm.Free()
+                self.assertEqual(ccmp, MPI.CONGRUENT)
+            finally:
+                lgroup.Free()
+                rgroup.Free()
+        except NotImplementedError:
+            self.assertTrue(MPI.VERSION < 4)
+            self.skipTest('mpi-comm-create_from_group')
+
 
 class TestIntercomm(BaseTestIntercomm, unittest.TestCase):
     BASECOMM = MPI.COMM_WORLD
@@ -84,6 +101,36 @@ class TestIntercommDupDup(TestIntercomm):
         INTERCOMM = self.INTERCOMM
         self.INTERCOMM = self.INTERCOMM.Dup()
         INTERCOMM.Free()
+
+
+@unittest.skipIf(MPI.COMM_WORLD.Get_size() < 2, 'mpi-world-size<2')
+class TestIntercommCreateFromGroups(unittest.TestCase):
+
+    def test(self):
+        rank = MPI.COMM_WORLD.Get_rank()
+        done = True
+        if rank < 2:
+            sgroup = MPI.COMM_SELF.Get_group()
+            wgroup = MPI.COMM_WORLD.Get_group()
+            local_leader = 0
+            remote_leader = 1 - rank
+            try:
+                comm = MPI.Intercomm.Create_from_groups(
+                    sgroup, local_leader,
+                    wgroup, remote_leader,
+                )
+                self.assertEqual(comm.Get_size(), 1)
+                self.assertEqual(comm.Get_remote_size(), 1)
+                comm.Free()
+            except NotImplementedError:
+                done = False
+            finally:
+                sgroup.Free()
+                wgroup.Free()
+        done = MPI.COMM_WORLD.allreduce(done, op=MPI.LAND)
+        if not done:
+            self.assertTrue(MPI.VERSION < 4)
+            self.skipTest('mpi-intercomm-create_from_groups')
 
 
 if __name__ == '__main__':
