@@ -34,6 +34,15 @@ cdef class Info:
         CHKERR( MPI_Info_create(&info.ob_mpi) )
         return info
 
+    @classmethod
+    def Create_env(cls) -> Info:
+        """
+        Create a new info object
+        """
+        cdef Info info = Info.__new__(Info)
+        CHKERR( MPI_Info_create_env(0, NULL, &info.ob_mpi) )
+        return info
+
     def Free(self) -> None:
         """
         Free a info object

@@ -46,6 +46,16 @@ class TestInfoEnv(unittest.TestCase):
                     "thread_level"):
             v = env.Get(key)
 
+    def testCreateEnv(self):
+        env = MPI.Info.Create_env()
+        if env == MPI.INFO_NULL: return
+        for key in ("command", "argv",
+                    "maxprocs", "soft",
+                    "host", "arch",
+                    "wdir", "file",
+                    "thread_level"):
+            v = env.Get(key)
+
 class TestInfo(unittest.TestCase):
 
     def setUp(self):
