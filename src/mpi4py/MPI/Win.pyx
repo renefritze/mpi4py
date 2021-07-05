@@ -59,7 +59,7 @@ cdef class Win:
     def Create(
         cls,
         memory: Union[Buffer, Bottom, None],
-        int disp_unit: int = 1,
+        Aint disp_unit: int = 1,
         Info info: Info = INFO_NULL,
         Intracomm comm: Intracomm = COMM_SELF,
     ) -> Win:
@@ -74,7 +74,7 @@ cdef class Win:
         elif memory is not None:
             memory = getbuffer_w(memory, &base, &size)
         cdef Win win = Win.__new__(Win)
-        with nogil: CHKERR( MPI_Win_create(
+        with nogil: CHKERR( MPI_Win_create_c(
             base, size, disp_unit,
             info.ob_mpi, comm.ob_mpi, &win.ob_mpi) )
         win_set_eh(win.ob_mpi)
@@ -85,7 +85,7 @@ cdef class Win:
     def Allocate(
         cls,
         Aint size: int,
-        int disp_unit: int = 1,
+        Aint disp_unit: int = 1,
         Info info: Info = INFO_NULL,
         Intracomm comm: Intracomm = COMM_SELF,
     ) -> Win:
@@ -94,7 +94,7 @@ cdef class Win:
         """
         cdef void *base = NULL
         cdef Win win = Win.__new__(Win)
-        with nogil: CHKERR( MPI_Win_allocate(
+        with nogil: CHKERR( MPI_Win_allocate_c(
             size, disp_unit, info.ob_mpi,
             comm.ob_mpi, &base, &win.ob_mpi) )
         win_set_eh(win.ob_mpi)
@@ -104,7 +104,7 @@ cdef class Win:
     def Allocate_shared(
         cls,
         Aint size: int,
-        int disp_unit: int = 1,
+        Aint disp_unit: int = 1,
         Info info: Info = INFO_NULL,
         Intracomm comm: Intracomm = COMM_SELF,
         ) -> Win:
@@ -113,7 +113,7 @@ cdef class Win:
         """
         cdef void *base = NULL
         cdef Win win = Win.__new__(Win)
-        with nogil: CHKERR( MPI_Win_allocate_shared(
+        with nogil: CHKERR( MPI_Win_allocate_shared_c(
             size, disp_unit, info.ob_mpi,
             comm.ob_mpi, &base, &win.ob_mpi) )
         win_set_eh(win.ob_mpi)
@@ -127,8 +127,8 @@ cdef class Win:
         """
         cdef void *base = NULL
         cdef MPI_Aint size = 0
-        cdef int disp_unit = 1
-        with nogil: CHKERR( MPI_Win_shared_query(
+        cdef MPI_Aint disp_unit = 1
+        with nogil: CHKERR( MPI_Win_shared_query_c(
             self.ob_mpi, rank,
             &size, &disp_unit, &base) )
         return (asbuffer(self, base, size, 0), disp_unit)
@@ -379,7 +379,7 @@ cdef class Win:
         """
         cdef _p_msg_rma msg = message_rma()
         msg.for_put(origin, target_rank, target)
-        with nogil: CHKERR( MPI_Put(
+        with nogil: CHKERR( MPI_Put_c(
             msg.oaddr, msg.ocount, msg.otype,
             target_rank,
             msg.tdisp, msg.tcount, msg.ttype,
@@ -396,7 +396,7 @@ cdef class Win:
         """
         cdef _p_msg_rma msg = message_rma()
         msg.for_get(origin, target_rank, target)
-        with nogil: CHKERR( MPI_Get(
+        with nogil: CHKERR( MPI_Get_c(
             msg.oaddr, msg.ocount, msg.otype,
             target_rank,
             msg.tdisp, msg.tcount, msg.ttype,
@@ -414,7 +414,7 @@ cdef class Win:
         """
         cdef _p_msg_rma msg = message_rma()
         msg.for_acc(origin, target_rank, target)
-        with nogil: CHKERR( MPI_Accumulate(
+        with nogil: CHKERR( MPI_Accumulate_c(
             msg.oaddr, msg.ocount, msg.otype,
             target_rank,
             msg.tdisp, msg.tcount, msg.ttype,
@@ -433,7 +433,7 @@ cdef class Win:
         """
         cdef _p_msg_rma msg = message_rma()
         msg.for_get_acc(origin, result, target_rank, target)
-        with nogil: CHKERR( MPI_Get_accumulate(
+        with nogil: CHKERR( MPI_Get_accumulate_c(
             msg.oaddr, msg.ocount, msg.otype,
             msg.raddr, msg.rcount, msg.rtype,
             target_rank,
@@ -490,7 +490,7 @@ cdef class Win:
         cdef _p_msg_rma msg = message_rma()
         msg.for_put(origin, target_rank, target)
         cdef Request request = Request.__new__(Request)
-        with nogil: CHKERR( MPI_Rput(
+        with nogil: CHKERR( MPI_Rput_c(
             msg.oaddr, msg.ocount, msg.otype,
             target_rank,
             msg.tdisp, msg.tcount, msg.ttype,
@@ -510,7 +510,7 @@ cdef class Win:
         cdef _p_msg_rma msg = message_rma()
         msg.for_get(origin, target_rank, target)
         cdef Request request = Request.__new__(Request)
-        with nogil: CHKERR( MPI_Rget(
+        with nogil: CHKERR( MPI_Rget_c(
             msg.oaddr, msg.ocount, msg.otype,
             target_rank,
             msg.tdisp, msg.tcount, msg.ttype,
@@ -531,7 +531,7 @@ cdef class Win:
         cdef _p_msg_rma msg = message_rma()
         msg.for_acc(origin, target_rank, target)
         cdef Request request = Request.__new__(Request)
-        with nogil: CHKERR( MPI_Raccumulate(
+        with nogil: CHKERR( MPI_Raccumulate_c(
             msg.oaddr, msg.ocount, msg.otype,
             target_rank,
             msg.tdisp, msg.tcount, msg.ttype,
@@ -554,7 +554,7 @@ cdef class Win:
         cdef _p_msg_rma msg = message_rma()
         msg.for_get_acc(origin, result, target_rank, target)
         cdef Request request = Request.__new__(Request)
-        with nogil: CHKERR( MPI_Rget_accumulate(
+        with nogil: CHKERR( MPI_Rget_accumulate_c(
             msg.oaddr, msg.ocount, msg.otype,
             msg.raddr, msg.rcount, msg.rtype,
             target_rank,
