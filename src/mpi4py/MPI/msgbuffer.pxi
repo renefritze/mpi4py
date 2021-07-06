@@ -114,7 +114,7 @@ cdef _p_message message_basic(object o_buf,
                               bint readonly,
                               #
                               void        **baddr,
-                              MPI_Aint     *bsize,
+                              MPI_Count    *bsize,
                               MPI_Datatype *btype,
                               ):
     cdef _p_message m = _p_message.__new__(_p_message)
@@ -133,8 +133,8 @@ cdef _p_message message_basic(object o_buf,
     # get buffer base address and length
     cdef bint fmt = (o_type is None)
     m.buf = getbuffer(o_buf, readonly, fmt)
-    baddr[0] = <void*>    m.buf.view.buf
-    bsize[0] = <MPI_Aint> m.buf.view.len
+    baddr[0] = m.buf.view.buf
+    bsize[0] = m.buf.view.len
     # lookup datatype if not provided or not a Datatype
     if isinstance(o_type, Datatype):
         m.type = <Datatype>o_type
@@ -152,7 +152,7 @@ cdef _p_message message_simple(object msg,
                                int blocks,
                                #
                                void         **_addr,
-                               int          *_count,
+                               MPI_Count    *_count,
                                MPI_Datatype *_type,
                                ):
     # special-case PROC_NULL target rank
@@ -193,18 +193,18 @@ cdef _p_message message_simple(object msg,
         raise TypeError("message: expecting buffer or list/tuple")
     # buffer: address, length, and datatype
     cdef void *baddr = NULL
-    cdef MPI_Aint bsize = 0
+    cdef MPI_Count bsize = 0
     cdef MPI_Datatype btype = MPI_DATATYPE_NULL
     cdef _p_message m = message_basic(o_buf, o_type, readonly,
                                       &baddr, &bsize, &btype)
     # buffer: count and displacement
-    cdef int count = 0 # number of datatype entries
-    cdef int displ = 0 # from base buffer, in datatype entries
-    cdef MPI_Aint extent = 0, lb = 0 # datatype extent
-    cdef MPI_Aint length = bsize     # in bytes
-    cdef MPI_Aint offset = 0         # from base buffer, in bytes
+    cdef MPI_Count count = 0 # number of datatype entries
+    cdef MPI_Aint  displ = 0 # from base buffer, in datatype entries
+    cdef MPI_Aint  extent = 0, lb = 0 # datatype extent
+    cdef MPI_Count length = bsize     # in bytes
+    cdef MPI_Aint  offset = 0         # from base buffer, in bytes
     if o_displ is not None:
-        displ = <int> o_displ
+        displ = <MPI_Aint> o_displ
         if displ < 0: raise ValueError(
             "message: negative diplacement %d" % displ)
         if displ > 0:
@@ -222,7 +222,7 @@ cdef _p_message message_simple(object msg,
             offset = displ*extent
             length -= offset
     if o_count is not None:
-        count = <int> o_count
+        count = <MPI_Count> o_count
         if count < 0: raise ValueError(
             "message: negative count %d" % count)
         if count > 0 and o_buf is None: raise ValueError(
@@ -242,14 +242,14 @@ cdef _p_message message_simple(object msg,
              "datatype extent %d (lb:%d, ub:%d)"
              ) % (length, extent, lb, lb+extent))
         if blocks < 2:
-            count = downcast(length // extent)
+            count = length // extent
         else:
             if ((length // extent) % blocks) != 0: raise ValueError(
                 ("message: cannot infer count, "
                  "number of entries %d is not a multiple of "
                  "required number of blocks %d"
                  ) %  (length//extent, blocks))
-            count = downcast((length // extent) // blocks)
+            count = (length // extent) // blocks
     # return collected message data
     m.count = o_count if o_count is not None else count
     m.displ = o_displ if o_displ is not None else displ
@@ -264,8 +264,8 @@ cdef _p_message message_vector(object msg,
                                int blocks,
                                #
                                void        **_addr,
-                               int         **_counts,
-                               int         **_displs,
+                               MPI_Count   **_counts,
+                               MPI_Aint    **_displs,
                                MPI_Datatype *_type,
                                ):
     # special-case PROC_NULL target rank
@@ -307,16 +307,17 @@ cdef _p_message message_vector(object msg,
         raise TypeError("message: expecting buffer or list/tuple")
     # buffer: address, length, and datatype
     cdef void *baddr = NULL
-    cdef MPI_Aint bsize = 0
+    cdef MPI_Count bsize = 0
     cdef MPI_Datatype btype = MPI_DATATYPE_NULL
     cdef _p_message m = message_basic(o_buf, o_type, readonly,
                                       &baddr, &bsize, &btype)
     # counts and displacements
-    cdef int *counts = NULL
-    cdef int *displs = NULL
-    cdef int i=0, val=0
-    cdef MPI_Aint extent=0, lb=0
-    cdef MPI_Aint asize=0, aval=0
+    cdef int i=0
+    cdef MPI_Count *counts = NULL
+    cdef MPI_Aint  *displs = NULL
+    cdef MPI_Aint  extent=0, lb=0
+    cdef MPI_Aint  asize=0, avalue=0
+    cdef MPI_Count csize=0, cvalue=0
     if o_counts is None:
         if bsize > 0:
             if btype == MPI_DATATYPE_NULL: raise ValueError(
@@ -332,29 +333,29 @@ cdef _p_message message_vector(object msg,
                  "buffer length %d is not a multiple of "
                  "datatype extent %d (lb:%d, ub:%d)"
                  ) % (bsize, extent, lb, lb+extent))
-            asize = bsize // extent
+            csize = bsize // extent
         o_counts = newarray(blocks, &counts)
         for i from 0 <= i < blocks:
-            aval = (asize // blocks) + (asize % blocks > i)
-            counts[i] = downcast(aval)
+            cvalue = (csize // blocks) + (csize % blocks > i)
+            counts[i] = cvalue
     elif is_integral(o_counts):
-        val = <int> o_counts
+        cvalue = <MPI_Count> o_counts
         o_counts = newarray(blocks, &counts)
         for i from 0 <= i < blocks:
-            counts[i] = val
+            counts[i] = cvalue
     else:
         o_counts = chkarray(o_counts, blocks, &counts)
     if o_displs is None: # contiguous
-        val = 0
+        avalue = 0
         o_displs = newarray(blocks, &displs)
         for i from 0 <= i < blocks:
-            displs[i] = val
-            val += counts[i]
+            displs[i] = avalue
+            avalue += <MPI_Aint> counts[i]
     elif is_integral(o_displs): # strided
-        val = <int> o_displs
+        avalue = <MPI_Aint> o_displs
         o_displs = newarray(blocks, &displs)
         for i from 0 <= i < blocks:
-            displs[i] = val * i
+            displs[i] = avalue * i
     else: # general
         o_displs = chkarray(o_displs, blocks, &displs)
     # return collected message data
@@ -371,8 +372,8 @@ cdef tuple message_vector_w(object msg,
                             int blocks,
                             #
                             void         **_addr,
-                            int          **_counts,
-                            integral_t   **_displs,
+                            MPI_Count    **_counts,
+                            MPI_Aint     **_displs,
                             MPI_Datatype **_types,
                             ):
     cdef int i = 0
@@ -411,7 +412,7 @@ cdef class _p_msg_p2p:
 
     # raw C-side arguments
     cdef void         *buf
-    cdef int          count
+    cdef MPI_Count    count
     cdef MPI_Datatype dtype
     # python-side argument
     cdef object _msg
@@ -465,9 +466,9 @@ cdef class _p_msg_cco:
 
     # raw C-side arguments
     cdef void *sbuf, *rbuf
-    cdef int scount, rcount
-    cdef int *scounts, *rcounts
-    cdef int *sdispls, *rdispls
+    cdef MPI_Count  scount, rcount
+    cdef MPI_Count *scounts, *rcounts
+    cdef MPI_Aint  *sdispls, *rdispls
     cdef MPI_Datatype stype, rtype
     # python-side arguments
     cdef object _smsg, _rmsg
@@ -802,12 +803,14 @@ cdef class _p_msg_cco:
         # get receive counts
         if rcnt is None and not inter and self.sbuf != MPI_IN_PLACE:
             self._rcnt = newarray(size, &self.rcounts)
-            CHKERR( MPI_Allgather(&self.rcount, 1, MPI_INT,
-                                  self.rcounts, 1, MPI_INT, comm) )
+            CHKERR( MPI_Allgather(
+                &self.rcount, 1, MPI_COUNT,
+                self.rcounts, 1, MPI_COUNT, comm) )
         else:
             self._rcnt = chkarray(rcnt, size, &self.rcounts)
         # total sum or receive counts
-        cdef int i=0, sumrcounts=0
+        cdef int i=0
+        cdef MPI_Count sumrcounts=0
         for i from 0 <= i < size:
             sumrcounts += self.rcounts[i]
         # check counts and datatypes
@@ -889,9 +892,8 @@ cdef class _p_msg_ccow:
 
     # raw C-side arguments
     cdef void *sbuf, *rbuf
-    cdef int *scounts, *rcounts
-    cdef int *sdispls, *rdispls
-    cdef MPI_Aint *sdisplsA, *rdisplsA
+    cdef MPI_Count *scounts, *rcounts
+    cdef MPI_Aint  *sdispls, *rdispls
     cdef MPI_Datatype *stypes, *rtypes
     # python-side arguments
     cdef object _smsg, _rmsg
@@ -900,7 +902,6 @@ cdef class _p_msg_ccow:
         self.sbuf     = self.rbuf     = NULL
         self.scounts  = self.rcounts  = NULL
         self.sdispls  = self.rdispls  = NULL
-        self.sdisplsA = self.rdisplsA = NULL
         self.stypes   = self.rtypes   = NULL
 
     # alltoallw
@@ -941,11 +942,11 @@ cdef class _p_msg_ccow:
         self._rmsg = message_vector_w(
             rmsg, 0, recvsize,
             &self.rbuf, &self.rcounts,
-            &self.rdisplsA, &self.rtypes)
+            &self.rdispls, &self.rtypes)
         self._smsg = message_vector_w(
             smsg, 1, sendsize,
             &self.sbuf, &self.scounts,
-            &self.sdisplsA, &self.stypes)
+            &self.sdispls, &self.stypes)
         return 0
 
 
@@ -961,19 +962,19 @@ cdef class _p_msg_rma:
 
     # raw origin arguments
     cdef void*        oaddr
-    cdef int          ocount
+    cdef MPI_Count    ocount
     cdef MPI_Datatype otype
     # raw compare arguments
     cdef void*        caddr
-    cdef int          ccount
+    cdef MPI_Count    ccount
     cdef MPI_Datatype ctype
     # raw result arguments
     cdef void*        raddr
-    cdef int          rcount
+    cdef MPI_Count    rcount
     cdef MPI_Datatype rtype
     # raw target arguments
     cdef MPI_Aint     tdisp
-    cdef int          tcount
+    cdef MPI_Count    tcount
     cdef MPI_Datatype ttype
     # python-side arguments
     cdef object _origin
@@ -1020,9 +1021,9 @@ cdef class _p_msg_rma:
             self.ttype  = self.otype
             nargs = len(target)
             if nargs >= 1:
-                self.tdisp  = <MPI_Aint>target[0]
+                self.tdisp  = <MPI_Aint> target[0]
             if nargs >= 2:
-                self.tcount = <int>target[1]
+                self.tcount = <MPI_Count> target[1]
             if nargs >= 3:
                 self.ttype  = (<Datatype?>target[2]).ob_mpi
             if nargs >= 4:
@@ -1115,7 +1116,7 @@ cdef class _p_msg_io:
 
     # raw C-side data
     cdef void         *buf
-    cdef int          count
+    cdef MPI_Count    count
     cdef MPI_Datatype dtype
     # python-side data
     cdef object _msg
