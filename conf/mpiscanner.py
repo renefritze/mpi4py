@@ -109,7 +109,6 @@ class NodePtrVal(NodeValue):
     MISSING = '#define %(cname)s ((%(ctype)s)%(calias)s)'
 
 def ctypefix(ct):
-    ct = ct.strip()
     ct = ct.replace('[][3]',' (*)[3]')
     ct = ct.replace('[]','*')
     return ct
@@ -128,8 +127,8 @@ class NodeFuncProto(Node):
         self.cargs = cargs or 'void'
         if cargs == 'void': cargs = ''
         if cargs:
-            cargs = cargs.split(',')
-            if cargs[-1].strip() == '...':
+            cargs = [c.strip() for c in cargs.split(',')]
+            if cargs[-1] == '...':
                 del cargs[-1]
         else:
             cargs = []
