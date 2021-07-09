@@ -2,12 +2,6 @@
 
 language: python
 python:
-  - 2.7
-  - 3.5
-  - 3.6
-  - 3.7
-  - 3.8
-  - 3.9
   - 3.10-dev
 arch:
   - arm64
@@ -26,12 +20,6 @@ env:
     - MPI=mpich
     - MPI=openmpi
 
-branches:
-  only:
-    - master
-    - maint
-    - ci/all
-    - ci/travis
 
 git:
   depth: 3
